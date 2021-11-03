@@ -1,0 +1,94 @@
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: nginx-app-02
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-02
+  namespace: nginx-app-02
+  labels:
+    app:                    nginx02
+    cis.f5.com/as3-tenant:  Nginx02
+    cis.f5.com/as3-app:     vs01-nginx-02
+    cis.f5.com/as3-pool:    p01-nginx-02
+spec:
+  type: NodePort
+  selector:
+    app: nginx-02
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx02
+  namespace: nginx-app-02
+  labels:
+    app: nginx-02
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-02
+  template:
+    metadata:
+      labels:
+        app: nginx-02
+    spec:
+      containers:
+      - name:  nginx02
+        image: 065972273535.dkr.ecr.us-west-2.amazonaws.com/jessed_ecr:jesse-nginx
+        ports:
+        - containerPort: 80
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: nginx-02-cfgmap
+  namespace: nginx-app-02
+  labels:
+    f5type: virtual-server
+    as3: "true"
+data:
+  template: |
+    {
+      "class": "AS3",
+      "declaration": {
+        "class": "ADC",
+        "schemaVersion": "3.18.0",
+        "id": "urn:uuid:33045210-3ab8-4636-9b2a-c98d22ab915d",
+        "label": "http",
+        "remark": "",
+        "Nginx02": {
+          "class": "Tenant",
+          "vs01-nginx-02": {
+            "class": "Application",
+            "template": "generic",
+            "vs01-nginx-02": {
+              "class": "Service_HTTP",
+              "remark": "Test VS 01",
+              "virtualAddresses": [
+                "10.0.1.50"
+              ],
+              "pool": "p01-nginx-02"
+            },
+            "p01-nginx-02": {
+              "class": "Pool",
+              "monitors": [
+                "icmp"
+              ],
+              "members": [
+                {
+                 "servicePort": 80,
+                 "serverAddresses": []
+                }
+              ]
+            }
+          }
+        }
+      }
+    }

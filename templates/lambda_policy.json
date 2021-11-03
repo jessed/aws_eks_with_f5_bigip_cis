@@ -1,0 +1,29 @@
+{
+  "Statement": [{
+    "Action": [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ],
+    "Effect": "Allow",
+    "Resource": "arn:aws:logs:*:*:*"
+  },
+  {
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "ec2:CreateNetworkInterface",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DetachNetworkInterface",
+      "ec2:AttachNetworkInterface",
+      "ec2:DeleteNetworkInterface",
+      "ec2:AssignPrivateIpAddresses",
+      "ec2:UnassignPrivateIpAddresses",
+      "autoscaling:CompleteLifecycleAction",
+      "ec2:AssociateAddress",
+      "ec2:DescribeInstances"
+    ],
+    "Resource": "*"
+  }]
+}
