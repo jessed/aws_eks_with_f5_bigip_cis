@@ -36,10 +36,15 @@ resource "aws_eks_node_group" "nodegroup" {
 ## Update kube-config file
 resource "null_resource" "update_kubeconfig" {
   triggers = {
-    cluster_name = aws_eks_cluster.eks.id
+    cluster_name              = aws_eks_cluster.eks.id
+    eks_endpoint              = aws_eks_cluster.eks.endpoint
   }
 
   provisioner "local-exec" {
+    environment = {
+      eks_endpoint            = aws_eks_cluster.eks.endpoint
+    }
+
     command   = "aws eks update-kubeconfig --region ${var.region} --name ${aws_eks_cluster.eks.id}"
   }
 }

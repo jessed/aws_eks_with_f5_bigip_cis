@@ -1,1 +1,1 @@
-output "endpoint"   { value = aws_eks_cluster.eks.endpoint }
+output "endpoint"       { value = null_resource.update_kubeconfig.triggers.eks_endpoint }

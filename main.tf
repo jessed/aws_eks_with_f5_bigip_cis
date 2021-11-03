@@ -84,6 +84,9 @@ module "ecr" {
   region                    = var.region
 }
 
+# Have to force this provide to be dependent on the 'update_kubeconfig' resource
+# to ensure that the config file is updated prior to sourcing that file. 
+# The provider cannot be called within the module directly.
 provider "kubernetes" {
   host        = module.eks.endpoint
   config_path = "~/.kube/config"
