@@ -10,8 +10,8 @@ resource "kubernetes_secret" "bigip" {
     namespace               = "kube-system"
   }
   data = {
-    username                = "var.secrets.bigip_user"
-    password                = "var.secrets.bigip_pass"
+    username                = var.f5_common.bigip_user
+    password                = var.f5_common.bigip_pass
   }
 }
 

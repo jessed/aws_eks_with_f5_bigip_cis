@@ -40,18 +40,6 @@ module "sg_data" {
   vpc_id                    = module.vpc.vpc_id
 }
 
-# Create Bigip - ASG
-module "asg" {
-  source                    = "./modules/bigip"
-  bigip                     = var.bigip
-  f5_common                 = local.f5_common
-  aws_f5_key                = var.aws_f5_key
-  vpc                       = module.vpc.vpc_out
-  mgmt_subnet               = module.vpc.mgmt_subnet
-  data_subnet               = module.vpc.data_subnet
-  sg_ids                    = [module.sg_mgmt.id,module.sg_data.id]
-}
-
 # Create EKS cluster policies and roles
 module "iam" {
   source                    = "./modules/iam"
@@ -84,6 +72,18 @@ module "ecr" {
   region                    = var.region
 }
 
+# Create Bigip - ASG
+module "asg" {
+  source                    = "./modules/bigip"
+  bigip                     = var.bigip
+  f5_common                 = local.f5_common
+  aws_f5_key                = var.aws_f5_key
+  vpc                       = module.vpc.vpc_out
+  mgmt_subnet               = module.vpc.mgmt_subnet
+  data_subnet               = module.vpc.data_subnet
+  sg_ids                    = [module.sg_mgmt.id,module.sg_data.id,module.eks.eks_sg_id]
+}
+
 # Have to force this provide to be dependent on the 'update_kubeconfig' resource
 # to ensure that the config file is updated prior to sourcing that file. 
 # The provider cannot be called within the module directly.
@@ -95,5 +95,6 @@ provider "kubernetes" {
 # Kubernetes configuration
 module "k8s" {
   source                    = "./modules/kubernetes"
+  f5_common                 = local.f5_common
   depends_on                = [module.eks, module.ecr]
 }

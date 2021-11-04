@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: k8s-bigip-ctlr-01
+  name: bigip-cis-01
   namespace: kube-system
 spec:
 # DO NOT INCREASE REPLICA COUNT
   replicas: 1
   selector:
     matchLabels:
-      app: k8s-bigip-ctlr-01
+      app: bigip-cis-01
   template:
     metadata:
       labels:
-        app: k8s-bigip-ctlr-01
+        app: bigip-cis-01
     spec:
       # Name of the Service Account bound to a Cluster Role with the required
       # permissions
       containers:
-        - name: k8s-bigip-ctlr-01
+        - name: bigip-cis-01
           image: "f5networks/k8s-bigip-ctlr"
           env:
             - name: BIGIP_USERNAME
@@ -40,7 +40,7 @@ spec:
             # https://clouddocs.f5.com/containers/latest/
             "--bigip-username=$(BIGIP_USERNAME)",
             "--bigip-password=$(BIGIP_PASSWORD)",
-            "--bigip-url=10.0.1.54",
+            "--bigip-url=10.200.0.147:8443",
             "--bigip-partition=k8s01",
             "--insecure",
             "--pool-member-type=nodeport",
@@ -49,7 +49,8 @@ spec:
             "--disable-teems=true",
             "--hubmode=true",
             "--log-level=debug",
-            "--namespace=nginx-app-01",
+            "--log-as3-response=true",
+            "--namespace=nginx01",
             #"--namespace=nginx-app-02",
             ]
       serviceAccount: bigip-ctlr

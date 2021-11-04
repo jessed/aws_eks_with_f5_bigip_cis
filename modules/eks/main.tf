@@ -37,7 +37,7 @@ resource "aws_eks_node_group" "nodegroup" {
 resource "null_resource" "update_kubeconfig" {
   triggers = {
     cluster_name              = aws_eks_cluster.eks.id
-    eks_endpoint              = aws_eks_cluster.eks.endpoint
+    endpoint                  = aws_eks_cluster.eks.endpoint
   }
 
   provisioner "local-exec" {

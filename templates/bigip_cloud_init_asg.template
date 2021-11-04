@@ -451,6 +451,7 @@ if [[ $DEBUG > 0 ]]; then set -x; fi
 # Update ${admin_user} password to allow REST calls and GUI access
 echo "$(date +%T) Updating $admin_user password"
 tmsh modify auth user $admin_user password "$admin_password"
+tmsh save sys config
 
 
 # Get the auth header for storage and API access
