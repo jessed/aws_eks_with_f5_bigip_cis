@@ -1,1 +1,0 @@
-output "out"      { value = aws_autoscaling_group.bastion_asg }

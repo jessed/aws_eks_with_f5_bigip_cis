@@ -16,12 +16,13 @@ uai_mgmt_headers="$cfg_dir/uai_mgmt_headers.txt"
 uai_storage_headers="$cfg_dir/uai_storage_headers.txt"
 cloud_init_log=${cloud_init_log}
 rpms_dir="$cfg_dir/rpms"
+hostname='${hostname}'
 
 use_bigiq_license=''
-blob_path=''
-DO_FN='${DO_FN}'
-AS3_FN='${AS3_FN}'
-TS_FN='${TS_FN}'
+cloud_storage_path='${cloud_storage_path}'
+do_iapp_pkg='${do_iapp_pkg}'
+as3_iapp_pkg='${as3_iapp_pkg}'
+ts_iapp_pkg='${ts_iapp_pkg}'
 
 # DO variables
 doUrl="mgmt/shared/declarative-onboarding"
@@ -45,17 +46,17 @@ metadata="http://169.254.169.254/latest/meta-data"
 do_config_b64='${DO_conf}'
 as3_config_b64='${AS3_conf}'
 ts_config_b64='${TS_conf}'
-ltm_config_b64=''
-ltm_cfg_file=''
-lic_update_b64=''
-update_license_b64=''
+ltm_config_b64='${ltm_config_b64}'
+
+update_license_script_b64='${license_update_script_b64}'
+license_service_b64='${license_update_service_b64}'
 
 do_cfg="$cfg_dir/do_cfg.json"
 ts_cfg="$cfg_dir/ts_cfg.json"
 as3_cfg="$cfg_dir/as3_cfg.json"
 ltm_cfg="$cfg_dir/ltm_cfg.conf"
-lic_update="$cfg_dir/f5_update_license.bash"
-update_license="$cfg_dir/f5_update_license.service"
+lic_update_script="$cfg_dir/f5_update_license.bash"
+license_service="$cfg_dir/f5_update_license.service"
 ## /Variables
 
 # Terraform template work-around
@@ -100,44 +101,48 @@ get_storage_auth_header() {
 }
 
 
-## Get Azure-assigned data-plane IP address from metadata
+## Get cloud-assigned data-plane IP address from metadata
 get_self_ip() {
   # Get data-plane NIC mac-address
   # looping this because sometimes it is called too soon and the MAC isn't available
   echo "$(date +%T) Getting data-plane MAC address"
+  shopt -s nocasematch
   while [[ true ]]; do
     ((count++))
-    dataNicMac=$(tmsh show net interface 1.1 all-properties | awk '/1\.1/ { print tolower($3) }')
-    if [[ -n $dataNicMac && ! $dataNicMac =~ "NONE" ]]; then break; fi
+
+    dataNicMac=$(tmsh show net interface all-properties | awk '/^1\.[0-1]/ { print tolower($3) }')
+    if [[ -n $dataNicMac && ! $dataNicMac =~ "none" ]]; then break; fi
     if (( count > 30 )); then
       echo "$(date +%T) Failed to find data nic mac address."
-      dataNicMacErr=1
+      mac_retrieval_error=1
+      shopt -u nocasematch
       break
     fi
     sleep 2
   done
 
   # Failure to get the NIC MAC is unrecoverable
-  if [[ $dataNicMacErr ]]; then
+  if [[ $mac_retrieval_error ]]; then
     echo "$(date +%T) ERROR: Failed to get data-plane mac address"
     tmsh show net interface all-properties >> $cfg_dir/$cloud_init_log
     exit 1
   fi
-  echo "$(date +%T) Found data-plane mac address: $dataNicMac"
+  echo "$(date +%T) Found data-plane mac address(es): $dataNicMac"
 
   # filter assigned addresses by data-plane mac
   jqAddrFilter=".network.interface[] | select(.macAddress == \"$dataNicMac\") | .ipv4.ipAddress[0].privateIpAddress"
   jqMaskFilter=".network.interface[] | select(.macAddress == \"$dataNicMac\") | .ipv4.subnet[0].prefix"
 
-  IP_HOSTNAME_FOUND=0
-  echo "$(date +%T) Getting Azure IP address for MAC address '$dataNicMac'"
+  IP_FOUND=0
+  echo "$(date +%T) Getting IP address for MAC address '$dataNicMac'"
   for (( c=0; c < 30; c++ )); do
-    ext_self=$(curl -s http://$metadata/network/interfaces/macs/$dataNicMac/local-ipv4s/)
-    ext_cidr=$(curl -s http://$metadata/network/interfaces/macs/$ext_mac/subnet-ipv4-cidr-block | awk 'BEGIN {FS="/"} {print $2}')
-    hostname=$(curl -s http://$metadata/local-hostname)
+    echo "$(date +%T) curl -s '$metadata/network/interfaces/macs/$dataNicMac/local-ipv4s/'"
+    ext_self=$(curl -s $metadata/network/interfaces/macs/$dataNicMac/local-ipv4s/)
+    echo "$(date +%T) (curl -s '$metadata/network/interfaces/macs/$dataNicMac/subnet-ipv4-cidr-block' | awk 'BEGIN {FS="/"} {print $2}'"
+    ext_cidr=$(curl -s $metadata/network/interfaces/macs/$dataNicMac/subnet-ipv4-cidr-block | awk 'BEGIN {FS="/"} {print $2}')
 
-    if [[ -n $ext_self && -n $ext_cidr && -n $hostname ]]; then
-      IP_HOSTNAME_FOUND=1
+    if [[ -n $ext_self && -n $ext_cidr ]]; then
+      IP_FOUND=1
       break
     else
       sleep 5
@@ -146,15 +151,14 @@ get_self_ip() {
 
 ## TODO: If data-plane IP/cidr cannot be determined, redeploy instance
   echo "$(date +%T) Found self-ip: $ext_self/$ext_cidr"
-  echo "$(date +%T) Found hostname: $hostname"
 }
 
 
 ### Download iAppLX packages
 get_iapp_pkgs() {
-  for pkg in $AS3_FN $DO_FN $TS_FN; do
+  for pkg in $as3_iapp_pkg $do_iapp_pkg $ts_iapp_pkg; do
     if [[ $pkg =~ $location_pattern ]]; then
-      # Not using blob storage
+      # Not using cloud storage
       file=$(basename $pkg)
       if [[ -f $rpms_dir/$file ]]; then
         echo "$(date +%T) File $rpms_dir/$file already present - skipping download"
@@ -177,12 +181,12 @@ get_iapp_pkgs() {
       fi
   
     else
-      # Using blob storage
+      # Using cloud storage
       echo -e "$(date +%T) Downloading $file"
-      echo $(date +%T) curl -LsH "$(cat $uai_storage_headers)" $blob_path/$file -o $rpms_dir/$file
-      curl -#vLH "$(cat $uai_storage_headers)" $blob_path/$file -o $rpms_dir/$file 2>$cfg_dir/curl_$${file}.log
+      echo $(date +%T) curl -LsH "$(cat $uai_storage_headers)" $cloud_storage_path/$file -o $rpms_dir/$file
+      curl -#vLH "$(cat $uai_storage_headers)" $cloud_storage_path/$file -o $rpms_dir/$file 2>$cfg_dir/curl_$${file}.log
       if [[ $? == 0 ]]; then rm $cfg_dir/curl_$${file}.log; fi
-      # Not performing checksum comparison because files in BLOB are pre-staged and assumed safe
+      # Not performing checksum comparison because files in cloud storage are pre-staged and assumed safe
     fi
   done
 }
@@ -207,7 +211,7 @@ install_iapp_pkgs() {
   tmsh restart sys service restnoded
   sleep 15
   
-  for pkg in $AS3_FN $DO_FN $TS_FN; do
+  for pkg in $as3_iapp_pkg $do_iapp_pkg $ts_iapp_pkg; do
     file=$(basename $pkg)
     if [[ ! -f $rpms_dir/$file ]]; then
       echo "$(date +%T) $rpms_dir/$file not present, skipping package install"
@@ -357,7 +361,6 @@ check_do_status() {
 
 # Write LTM config to file and merge it into the running configuration
 load_ltm_config() {
-  # If ltm config was provided as a location ($ltm_cfg_file) it should already be written to disk
   # If provided as a base64, decode and write to file
   if [[ -n $ltm_config_b64 && (($vlans > 0)) ]]; then echo $ltm_config_b64 | base64 -d > $ltm_cfg; fi
   
@@ -389,21 +392,20 @@ load_ltm_config() {
 ## If BIG-IQ licensing was used we should release it on shutdown 
 ## Create systemd service to release the license on shutdown and relicense on boot
 mk_system_licensing() {
-  if [[ $use_bigiq_license == 1 ]]; then
-    # create license revocation script in /etc/init.d and symlink to rc scripts
-    if [[ -n $lic_update_b64 ]]; then echo $lic_update_b64 | base64 -d > $lic_update; fi
-    if [[ -n $update_license_b64 ]]; then echo $update_license_b64 | base64 -d > $update_license; fi
+  # create license revocation script in /etc/init.d and symlink to rc scripts
+  if [[ $update_license_script_b64 ]]; then echo $update_license_script_b64 | base64 -d > $lic_update_script; fi
+  if [[ $license_service_b64 ]]; then echo $license_service_b64 | base64 -d > $license_service; fi
   
-    chmod 755 $lic_update
-    cp $lic_update /etc/init.d
+  chmod 755 $lic_update_script
+  cp $lic_update_script /etc/init.d
   
-    # create systemd service
-    cp $update_license /etc/systemd/system/
-    systemctl daemon-reload
-    systemctl enable f5_update_license
-    systemctl start f5_update_license
-  fi  
+  # create systemd service
+  cp $license_service /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable f5_update_license
+  systemctl start f5_update_license
 }
+
 
 
 ## Disable syslog logging to console
@@ -476,10 +478,10 @@ test -f $ts_cfg  && { submit_telemetry_streaming; }
 test -f $as3_cfg && { submit_as3; }
 
 # Merge initial bigip.conf into running configuration
-load_ltm_config
+test -n $ltm_config_b64 && { load_ltm_config; }
 
 # Create systemd licensing service
-mk_system_licensing
+test -n $license_update_script_b64 && { mk_system_licensing; }
 
 # disable console logging from syslog
 disable_syslog_console

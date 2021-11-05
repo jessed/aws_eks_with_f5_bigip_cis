@@ -1,12 +1,11 @@
 
-
-
 # AWS defaults 
 variable "owner"            { default = "driskill@f5.com" }
 variable "owner_id"         { default = "065972273535" }
 variable "region"           { default = "us-west-2" }
 variable "avail_zone"       { default = "us-west-2a" }
 variable "aws_f5_key"       { default = "jesse-aws" }
+variable "domain"           { default = "aws.jessnet.net" }
 
 # Global vars
 variable "project"          { default = "eks_cis" }
@@ -66,26 +65,32 @@ locals {
     key                     = var.aws_f5_key
     bigip_user              = local.secrets.bigip_user
     bigip_pass              = local.secrets.bigip_pass
+    domain                  = var.domain
 
-    s3_bucket               = "jesse-eks"
-
-    use_cloud_storage       = 0
-    use_cloud_config        = 1
-    ltm_cloud_config        = "ltm_config.conf-template"
+    cloud_storage_path      = ""
 
     cloud_init_log          = "cloud-init.log"
-    blob_name               = "ltm_config.conf-template"   # cloud storage config blob
     cfg_dir                 = "/shared/cloud_init"
-    ACR                     = "unused"
-    DO_file                 = "https://github.com/F5Networks/f5-declarative-onboarding/releases/download/v1.15.0/f5-declarative-onboarding-1.15.0-3.noarch.rpm"
-    AS3_file                = "https://github.com/F5Networks/f5-appsvcs-extension/releases/download/v3.22.1/f5-appsvcs-3.22.1-1.noarch.rpm"
-    TS_file                 = "https://github.com/F5Networks/f5-telemetry-streaming/releases/download/v1.14.0/f5-telemetry-1.14.0-2.noarch.rpm"
-    ts_region               = "us-west-2"
+    DO_pkg                  = "https://github.com/F5Networks/f5-declarative-onboarding/releases/download/v1.24.0/f5-declarative-onboarding-1.24.0-6.noarch.rpm"
+    AS3_pkg                 = "https://github.com/F5Networks/f5-appsvcs-extension/releases/download/v3.31.0/f5-appsvcs-3.31.0-6.noarch.rpm"
+    TS_pkg                  = "https://github.com/F5Networks/f5-telemetry-streaming/releases/download/v1.23.0/f5-telemetry-1.23.0-4.noarch.rpm"
+    ts_region               = var.region
     ts_type                 = "AWS_CloudWatch"
     ts_log_group            = "f5telemetry"
     ts_log_stream           = "default"
     ts_username             = "accesskey"
     ts_passphrase           = "ciphertext"
+  }
+  bigiq = {                 # BIG-IQ License Manager (for BYOL licensing)
+    host                    = local.secrets.bigiq_host
+    user                    = local.secrets.bigiq_user
+    pass                    = local.secrets.bigiq_pass
+    lic_type                = "licensePool"
+    lic_pool                = "azure_test"
+    lic_measure             = "yearly"
+    lic_hypervisor          = "aws"
+    reachable               = false
+		project									= var.project
   }
 }
 

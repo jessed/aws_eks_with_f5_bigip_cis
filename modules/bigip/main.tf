@@ -1,70 +1,58 @@
 # Create BIG-IP(s)
 
-## launch template
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/launch_template
+# Create bigip instance
+resource "aws_instance" "bigip" {
+  count                       = var.bigip.count
+  ami                         = var.bigip.use_paygo == true ? var.bigip.paygo-ami : var.bigip.byol-ami
+  instance_type               = var.bigip.instance_type
+  key_name                    = var.f5_common.key
+  subnet_id                   = var.mgmt_subnet.id
+  availability_zone           = var.f5_common.zone
+  vpc_security_group_ids      = var.sg_ids
+  associate_public_ip_address = true
+  #iam_instance_profile        = var.instance_profile.name
 
-resource "aws_launch_template" "bigip" {
-  name_prefix                   = var.bigip.prefix
-  image_id                      = var.bigip.ami
-  instance_type                 = var.bigip.instance_type
-  key_name                      = var.aws_f5_key
-  user_data                     = base64gzip(local_file.ltm_cloud_init.content)
-
-  instance_initiated_shutdown_behavior = "terminate"
-
-#  iam_instance_profile {
-#    name                        = var.instance_profile.name
-#  }
+  user_data_base64            = base64gzip(local_file.ltm_cloud_init[count.index].content)
 
   tags = {
-    Name                        = var.bigip.prefix
-    service                     = "nva"
+    Name                      = format("${var.bigip.prefix}%02d", count.index+1)
+    hostname                  = format("${var.bigip.prefix}%02d.%s", count.index+1, var.bigip.domain)
+    owner                     = var.f5_common.owner
   }
 
-  network_interfaces {
-    description                 = "Management interface"
-    subnet_id                   = var.mgmt_subnet.id
-    associate_public_ip_address = true
-    delete_on_termination       = true
-    security_groups             = var.sg_ids
-    device_index                = 0
+  # update local hosts file
+  provisioner "local-exec" {
+    command                   = "${path.root}/scripts/update_hosts.bash ${self.tags.Name} ${self.public_ip}"
   }
 
-# Cannot assign public addresses if two network interfaces are in use
-#  network_interfaces {
-#    description                 = "Dataplane interface"
-#    subnet_id                   = var.data_subnet.id
-#    associate_public_ip_address = false
-#    delete_on_termination       = true
-#    security_groups             = var.sg_ids
-#    device_index                = 1
-#  }
-}
+  # Revoke license on BIG-IQ
+  # This will run (and fail) with paygo images, but the failure shouldn't impact 
+  # terraform completion
+  provisioner "local-exec" {
+    when                      = destroy
+    #command                   = "${path.root}/scripts/revoke_license.bash ${self.public_ip} ${var.bigiq.host} ${var.bigip.use_paygo}"
 
-## auto-scaling group
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/autoscaling_group
-resource "aws_autoscaling_group" "asg" {
-  name                          = var.bigip.asg_name
-  vpc_zone_identifier           = [var.mgmt_subnet.id, var.data_subnet.id]
-  min_size                      = var.bigip.asg_min
-  max_size                      = var.bigip.asg_max
-  force_delete                  = true
-  health_check_grace_period     = var.bigip.monitor_grace_period
-
-  lifecycle {
-    create_before_destroy       = true
-    ignore_changes              = [load_balancers, target_group_arns]
-  }
-
-  launch_template {
-    id                          = aws_launch_template.bigip.id
-    version                     = "$Latest"
-  }
-
-  tag {
-    key                         = "Name"
-    value                       = var.bigip.asg_name
-    propagate_at_launch         = true
+    # TF doesn't let a destroy action reference external variables -__-
+    command                   = "${path.root}/scripts/revoke_license.bash ${self.public_ip}"
+    on_failure                = continue
   }
 }
+
+# create data-plane interface
+resource "aws_network_interface" "data_plane" {
+  count                       = var.bigip.count
+  description                 = format("${var.bigip.prefix}%02d_data_nic", count.index+1)
+  subnet_id                   = var.data_subnet.id
+  private_ips_count           = var.bigip.data_ip_count
+  security_groups             = var.sg_ids
+}
+
+# Attach interface as a separate operation
+resource "aws_network_interface_attachment" "data_plane" {
+  count                       = var.bigip.count
+  instance_id                 = aws_instance.bigip.*.id[count.index]
+  network_interface_id        = aws_network_interface.data_plane.*.id[count.index]
+  device_index                = 1
+}
+
 

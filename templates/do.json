@@ -22,20 +22,20 @@
       "log.tcpdump.level": "error",
       "setup.run": false
     },
-    "myNtp": { "class": "NTP", "servers": [ "tick.ucla.edu" ], "timezone": "America/Los_Angeles" },
-    "myProvisioning": { "class": "Provision", "ltm": "nominal" },
-    "external": {
-      "class": "VLAN",
-      "tag": 4094,
-      "mtu": 1500,
-      "interfaces": [ { "name": "1.1", "tagged": false } ]
+    "myNtp": {
+			"class": "NTP",
+      "servers": [ "tick.ucla.edu" ],
+      "timezone": "America/Los_Angeles"
     },
-    "selfip": {
-      "class": "SelfIp",
-      "address": "__SELF_IP__/__NETMASK__",
-      "vlan": "external",
-      "allowService": "default",
-      "trafficGroup": "traffic-group-local-only"
-    }
+    "myProvisioning": {
+      "class": "Provision",
+      "ltm": "nominal"
+    },
+    "analytics": {
+      "offboxEnabled": true,
+      "offboxProtocol": "tcp",
+      "offboxAddresses": "127.0.0.1",
+      "offboxTcpPort": 6514
+    }${dataplane_network}${licensing}
   }
 }

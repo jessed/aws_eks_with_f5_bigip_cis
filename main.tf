@@ -74,6 +74,21 @@ module "ecr" {
 
 # Create Bigip - ASG
 module "asg" {
+  count                     = var.bigip.use_asg == true ? 1 : 0
+  source                    = "./modules/autoscale"
+  bigip                     = var.bigip
+  f5_common                 = local.f5_common
+  aws_f5_key                = var.aws_f5_key
+  vpc                       = module.vpc.vpc_out
+  mgmt_subnet               = module.vpc.mgmt_subnet
+  data_subnet               = module.vpc.data_subnet
+  bigiq                     = local.bigiq
+  sg_ids                    = [module.sg_mgmt.id,module.sg_data.id,module.eks.eks_sg_id]
+}
+
+# Create Bigip - Instance(s)
+module "bigip" {
+  count                     = var.bigip.use_asg == false ? 1 : 0
   source                    = "./modules/bigip"
   bigip                     = var.bigip
   f5_common                 = local.f5_common
@@ -81,6 +96,7 @@ module "asg" {
   vpc                       = module.vpc.vpc_out
   mgmt_subnet               = module.vpc.mgmt_subnet
   data_subnet               = module.vpc.data_subnet
+  bigiq                     = local.bigiq
   sg_ids                    = [module.sg_mgmt.id,module.sg_data.id,module.eks.eks_sg_id]
 }
 

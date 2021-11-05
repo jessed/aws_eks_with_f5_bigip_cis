@@ -1,0 +1,15 @@
+,
+    "myLicenses": {
+      "class": "License",
+      "bigIpUsername":  "${bigIP_User}",
+      "bigIpPassword":  "${bigIP_Pass}",
+      "bigIqHost":      "${bigIQ_Host}",
+      "bigIqUsername":  "${bigIQ_Username}",
+      "bigIqPassword":  "${bigIQ_Password}",
+      "licenseType":    "${bigIQ_LicenseType}",
+      "licensePool":    "${bigIQ_LicensePool}",
+      "unitOfMeasure":  "${bigIQ_UnitOfMeasure}",
+      "hypervisor":     "${bigIQ_Hypervisor}",
+      "reachable":      false,
+      "overwrite":      true
+    }

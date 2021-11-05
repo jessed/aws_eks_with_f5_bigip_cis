@@ -2,9 +2,8 @@
 
 # System Onboarding script
 resource "local_file" "ltm_cloud_init" {
-  count                           = var.bigip.use_asg == true ? 1 : var.bigip.count
   content = templatefile("${path.root}/templates/bigip_cloud_init.template", {
-    hostname                      = "${var.bigip.prefix}.${var.f5_common.domain}"
+    hostname                      = "${var.bigip.asg_name}.${var.f5_common.domain}"
     cloud_init_log                = var.f5_common.cloud_init_log
     admin_user                    = var.f5_common.bigip_user
     admin_password                = var.f5_common.bigip_pass
@@ -20,7 +19,7 @@ resource "local_file" "ltm_cloud_init" {
     license_update_script_b64     = try(base64encode(local_file.license_script[0].content), "")
     license_update_service_b64    = try(local_file.license_service[0].content, "")
   })
-  filename                        = "${path.root}/work_tmp/bigip_cloud_init[count.index].bash"
+  filename                        = "${path.root}/work_tmp/bigip_cloud_init.bash"
 }
 
 
@@ -48,7 +47,7 @@ resource "local_file" "do-networking" {
 
 # If byol *is* in-use, import the licensing configuration
 resource "local_file" "do-licensing" {
-  count                           = var.bigip.use_paygo == false ? 1 : 0
+  count                           = var.bigip.use_paygo == true ? 1 : 0
   content = templatefile("${path.root}/templates/do-byol-licensing.json", {
     bigIQ_Host                    = var.bigiq.host
     bigIQ_Username                = var.bigiq.user
@@ -65,7 +64,7 @@ resource "local_file" "do-licensing" {
 
 # If byol *is* used, create the license script and service
 resource "local_file" "license_script" {
-  count                           = var.bigip.use_paygo == false ? 1 : 0
+  count                           = var.bigip.use_paygo == true ? 1 : 0
   content = templatefile("${path.root}/templates/byol-license.bash-template", {
     bigIQ_Host                    = var.bigiq.host
     bigIQ_User                    = var.bigiq.user
@@ -78,7 +77,7 @@ resource "local_file" "license_script" {
 }
 
 resource "local_file" "license_service" {
-  count                           = var.bigip.use_paygo == false ? 1 : 0
+  count                           = var.bigip.use_paygo == true ? 1 : 0
   content                         = filebase64("${path.root}/templates/byol-license.service")
   filename                        = "${path.root}/work_tmp/license.service"
 }
