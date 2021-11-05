@@ -1,7 +1,6 @@
 
 # AWS defaults 
 variable "owner"            { default = "driskill@f5.com" }
-variable "owner_id"         { default = "065972273535" }
 variable "region"           { default = "us-west-2" }
 variable "avail_zone"       { default = "us-west-2a" }
 variable "aws_f5_key"       { default = "jesse-aws" }
@@ -59,7 +58,7 @@ locals {
 
   f5_common = {
     owner                   = var.owner
-    owner_id                = var.owner_id
+    owner_id                = local.secrets.owner_id
     region                  = var.region
     zone                    = var.avail_zone
     key                     = var.aws_f5_key
